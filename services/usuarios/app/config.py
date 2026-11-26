@@ -1,5 +1,10 @@
 import os
 
+from dotenv import load_dotenv
+from pathlib import Path
+
+load_dotenv(Path(__file__).resolve().parents[3] / ".env")
+
 JWT_SEGREDO = os.getenv("JWT_SEGREDO", "")
 JWT_ALGORITMO = "HS256"
 JWT_EMISSOR = "helpdesk-ti"
