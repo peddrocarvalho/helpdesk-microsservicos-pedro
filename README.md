@@ -1,155 +1,271 @@
-# HelpDesk TI · versão monolítica
+# HelpDesk TI — Arquitetura de Microsserviços
 
-Sistema de chamados de TI (no estilo de um GLPI simplificado), feito em **Python + FastAPI**.
-É a aplicação base da atividade de **Arquitetura de Software**: hoje ela é um **monólito**;
-a missão de cada aluno é transformá-la em **microsserviços** (veja [DESAFIO.md](DESAFIO.md)).
+Sistema de gerenciamento de chamados de suporte técnico, desenvolvido com **Python, FastAPI, SQLite e Docker**.
 
-## Telas do sistema
+Este projeto foi desenvolvido como atividade da disciplina de Arquitetura de Software. O objetivo foi migrar a aplicação original, estruturada como monólito, para uma arquitetura distribuída em microsserviços, preservando suas principais funcionalidades e regras de negócio.
 
-![Demonstração: entrar, abrir, atribuir, resolver e fechar um chamado](docs/demo.gif)
+## 1. Arquitetura
 
-| Login | Painel do técnico | Chamado resolvido |
-|---|---|---|
-| ![Login](docs/01-login.png) | ![Painel](docs/02-painel.png) | ![Chamado resolvido](docs/03-chamado-resolvido.png) |
+A aplicação foi dividida em quatro serviços independentes:
 
-## O que o sistema faz
+| Serviço | Responsabilidade |
+|---|---|
+| API Gateway | Ponto único de entrada, encaminhamento de requisições e interface web |
+| Usuários | Autenticação, usuários, perfis e permissões |
+| Inventário | Cadastro e consulta de equipamentos e ativos |
+| Chamados | Abertura, atribuição, acompanhamento, comentários e notificações |
 
-- **Login** com e-mail e senha; cada pessoa vê e faz só o que o seu perfil permite.
-- Cadastra **usuários** e **equipamentos** (inventário de TI).
-- **Abre chamados** com prioridade e calcula o prazo de atendimento (SLA): crítica 4 h, alta 8 h, média 24 h, baixa 72 h.
-- **Atribui** chamados a técnicos, controla o **status** e aceita **comentários**.
-- Registra **notificações** quando um chamado é aberto, atribuído ou resolvido.
-- Mostra um **painel** com totais por status e chamados atrasados.
+As notificações são gerenciadas pelo próprio serviço de Chamados. Não foi criado um microsserviço independente de notificações.
 
-### Perfis e permissões
-
-| Ação | Solicitante | Técnico | Administrador |
-|---|:-:|:-:|:-:|
-| Abrir chamado | ✅ | ✅ | ✅ |
-| Ver chamados | só os seus | todos | todos |
-| Comentar | nos seus | todos | todos |
-| Atribuir e resolver | ❌ | ✅ | ✅ |
-| Fechar ou reabrir um chamado resolvido | os seus | ✅ | ✅ |
-| Cadastrar equipamentos | ❌ | ✅ | ✅ |
-| Cadastrar usuários | ❌ | ❌ | ✅ |
-
-## Como rodar
-
-**Com Docker**
-
-```bash
-docker compose up --build
-```
-
-**Sem Docker** (Python 3.11 ou mais novo)
-
-```bash
-pip install -r requirements-dev.txt
-uvicorn app.main:app --reload
-```
-
-Depois abra:
-
-- Tela do HelpDesk: http://localhost:8000
-- Documentação da API (Swagger): http://localhost:8000/docs (clique em **Authorize** e cole o token do login)
-
-### Contas de acesso
-
-Não é preciso criar conta: o sistema já começa com estes usuários.
-Todos usam a senha **`Helpdesk2026`**.
-
-| E-mail | Perfil | O que pode fazer |
-|---|---|---|
-| `admin@empresa.com` | Administrador | Tudo, inclusive cadastrar usuários |
-| `carla@empresa.com` | Técnica | Ver todos os chamados, atribuir, resolver e cadastrar equipamentos |
-| `diego@empresa.com` | Técnico | O mesmo que a Carla |
-| `ana@empresa.com` | Solicitante | Abrir chamados e ver só os próprios |
-| `bruno@empresa.com` | Solicitante | O mesmo que a Ana |
-
-Dicas:
-
-- Para testar o fluxo completo (abrir, atribuir, resolver e fechar), entre como **Carla**.
-- Para testar as permissões, entre como **Ana**: ela não vê os chamados do Bruno.
-- Para trocar a senha de todas as contas, defina `SENHA_EXEMPLO` no arquivo `.env`.
-- As contas só são criadas quando o sistema sobe com `DADOS_EXEMPLO=1` (o padrão), e só na primeira vez, com o banco vazio.
-
-> Estas contas têm senha conhecida e servem só para aula. Em produção, use `DADOS_EXEMPLO=0`.
-
-### Configuração
-
-Copie `.env.example` para `.env` e ajuste. O principal é o `JWT_SEGREDO`, que assina os logins.
-O arquivo `.env` nunca deve ir para o GitHub (ele já está no `.gitignore`).
-
-## Testes
-
-```bash
-pytest -q
-```
-
-São 36 testes, incluindo **testes de segurança** (`tests/test_seguranca.py`): login, token falso ou vencido,
-bloqueio de tentativas, permissões por perfil, campos extras e limites de tamanho.
-A cada envio ao GitHub, os testes rodam sozinhos e o `pip-audit` confere se alguma dependência tem falha conhecida.
-
-## Segurança
-
-Veja o que está protegido e o que fazer antes de usar em produção em [SECURITY.md](SECURITY.md).
-
-## Arquitetura atual (monólito)
-
-Uma aplicação, um banco e uma implantação. O código é dividido em **módulos**, e cada módulo
-só usa a **porta pública** do outro (o arquivo `servico.py`).
+### Diagrama da arquitetura
 
 ```mermaid
-flowchart TB
-    Tela[Tela do HelpDesk] --> API
-    subgraph API[Aplicação HelpDesk · um processo]
-        Auth[auth]
-        Usuarios[usuarios]
-        Inventario[inventario]
-        Chamados[chamados]
-        Notificacoes[notificacoes]
-        Auth -->|confere a senha| Usuarios
-        Chamados -->|chamada de função| Usuarios
-        Chamados -->|chamada de função| Inventario
-        Chamados -->|chamada de função| Notificacoes
-    end
-    API --> BD[(Banco único)]
+flowchart TD
+    Cliente[Usuário / Navegador] --> Gateway[API Gateway]
+
+    Gateway --> Usuarios[Serviço de Usuários]
+    Gateway --> Inventario[Serviço de Inventário]
+    Gateway --> Chamados[Serviço de Chamados]
+
+    Chamados --> Usuarios
+    Chamados --> Inventario
+
+    Usuarios --> DB1[(Banco de Usuários)]
+    Inventario --> DB2[(Banco de Inventário)]
+    Chamados --> DB3[(Banco de Chamados)]
 ```
 
+### Comunicação entre os serviços
+
+A comunicação entre os microsserviços ocorre por meio de APIs HTTP.
+
+- O Gateway recebe as requisições externas e as encaminha ao serviço responsável.
+- Chamados consulta Usuários para validar informações relacionadas aos usuários.
+- Chamados consulta Inventário para validar os ativos associados aos chamados.
+- O token JWT é encaminhado nas chamadas internas que exigem autenticação.
+- As chamadas entre serviços possuem timeout e tratamento de indisponibilidade.
+
+Cada serviço possui seu próprio banco SQLite, sem acesso direto ao banco de outro serviço.
+
+## 2. Tecnologias utilizadas
+
+- Python 3.12
+- FastAPI
+- SQLAlchemy
+- SQLite
+- JWT para autenticação
+- Docker
+- Docker Compose
+- HTML, CSS e JavaScript na interface web
+
+## 3. Estrutura do projeto
+
+```text
+helpdesk-microsservicos-pedro/
+│
+├── app/                       # Aplicação monolítica original
+│
+├── gateway/                   # API Gateway
+│   ├── app/
+│   └── Dockerfile
+│
+├── services/
+│   ├── usuarios/              # Microsserviço de usuários
+│   │   ├── app/
+│   │   └── Dockerfile
+│   │
+│   ├── inventario/            # Microsserviço de inventário
+│   │   ├── app/
+│   │   └── Dockerfile
+│   │
+│   └── chamados/              # Microsserviço de chamados
+│       ├── app/
+│       └── Dockerfile
+│
+├── tests/                     # Testes da aplicação original
+├── docs/                      # Imagens e documentação
+├── docker-compose.yml
+├── .env.example
+├── README.md
+└── DESAFIO.md
 ```
-app/
-├── main.py            # junta os módulos e sobe a aplicação
-├── config.py          # configurações (variáveis de ambiente)
-├── database.py        # conexão com o banco único
-├── seguranca_http.py  # cabeçalhos de segurança e limite de tamanho
-├── erros.py           # erros de negócio
-├── dados_exemplo.py   # dados iniciais (só para aula)
-├── web/               # tela: index.html, app.js, estilo.css
-├── auth/              # senhas (scrypt), tokens JWT, login, limite de tentativas
-├── usuarios/          # modelos, esquemas, repositorio, servico (público), rotas
-├── inventario/
-├── chamados/          # depende de usuarios, inventario e notificacoes
-└── notificacoes/
+
+A pasta `app/` mantém a aplicação monolítica original como referência da implementação inicial.
+
+## 4. Como executar o projeto
+
+### Pré-requisitos
+
+- Docker Desktop instalado e em execução.
+- Git, caso queira clonar o repositório.
+
+### Clonar o repositório
+
+```bash
+git clone https://github.com/peddrocarvalho/helpdesk-microsservicos-pedro.git
+cd helpdesk-microsservicos-pedro
 ```
 
-Em `app/chamados/servico.py`, os comentários `# vira chamada HTTP` e `# vira evento` marcam
-os pontos que mudam quando o sistema for separado.
+### Configurar as variáveis de ambiente
 
-## Rotas principais
+Crie o arquivo `.env` a partir do modelo:
 
-Todas exigem login, exceto `/auth/login` e `/saude`.
+```powershell
+Copy-Item .env.example .env
+```
 
-| Método | Rota | O que faz | Quem pode |
-|---|---|---|---|
-| POST | `/auth/login` | Entra e recebe o token | Todos |
-| GET | `/auth/eu` | Dados de quem está logado | Logado |
-| POST | `/usuarios` | Cria usuário | Admin |
-| GET | `/usuarios` | Lista usuários (sem e-mail) | Logado |
-| POST / GET | `/ativos` | Cria e lista equipamentos | Técnico e admin / logado |
-| POST | `/chamados` | Abre chamado em nome de quem está logado | Logado |
-| GET | `/chamados` | Lista chamados | Logado (solicitante vê só os seus) |
-| GET | `/chamados/painel` | Totais por status e atrasados | Logado |
-| PATCH | `/chamados/{id}/atribuir` | Atribui a um técnico | Técnico e admin |
-| PATCH | `/chamados/{id}/status` | Muda o status | Técnico e admin (solicitante: fechar ou reabrir) |
-| POST | `/chamados/{id}/comentarios` | Comenta no chamado | Envolvidos |
-| GET | `/notificacoes` | Minhas notificações | Logado |
+Configure o segredo JWT no arquivo `.env`. Ele deve ser mantido privado e não deve ser enviado ao GitHub.
+
+### Iniciar os serviços
+
+```bash
+docker compose up --build -d
+```
+
+Verificar os containers:
+
+```bash
+docker compose ps
+```
+
+A aplicação ficará disponível em:
+
+**http://localhost:8000**
+
+O Gateway é o único serviço que expõe uma porta para acesso externo. Os demais serviços são acessados internamente pela rede do Docker.
+
+### Encerrar os serviços
+
+```bash
+docker compose down
+```
+
+Os volumes dos bancos de dados são preservados ao encerrar os containers com esse comando.
+
+## 5. Funcionalidades preservadas
+
+O sistema mantém as principais funcionalidades da aplicação original:
+
+- Autenticação por e-mail e senha.
+- Controle de acesso baseado em perfis.
+- Cadastro e gerenciamento de usuários.
+- Cadastro e consulta de equipamentos.
+- Abertura de chamados com diferentes prioridades.
+- Atribuição de chamados a técnicos.
+- Atualização e acompanhamento de status.
+- Comentários nos chamados.
+- Cálculo de prazo de atendimento por SLA.
+- Registro de notificações.
+- Painel de acompanhamento dos chamados.
+
+### Perfis de acesso
+
+| Permissão | Solicitante | Técnico | Administrador |
+|---|:---:|:---:|:---:|
+| Abrir chamado | Sim | Sim | Sim |
+| Consultar chamados | Próprios | Todos | Todos |
+| Comentar chamados | Próprios | Todos | Todos |
+| Atribuir chamados | Não | Conforme permissões | Sim |
+| Gerenciar usuários | Não | Não | Sim |
+| Gerenciar inventário | Não | Sim | Sim |
+
+### Regras de SLA
+
+| Prioridade | Prazo |
+|---|---:|
+| Crítica | 4 horas |
+| Alta | 8 horas |
+| Média | 24 horas |
+| Baixa | 72 horas |
+
+### Fluxo de status
+
+```text
+Aberto
+  ↓
+Em atendimento
+  ↓
+Resolvido
+  ↓
+Fechado
+```
+
+Um chamado resolvido também pode ser reaberto pelo solicitante, retornando ao atendimento.
+
+## 6. Segurança
+
+Foram mantidos e aplicados mecanismos de segurança para a arquitetura distribuída:
+
+- Autenticação utilizando JWT.
+- Validação de tokens nos serviços.
+- Controle de permissões por perfil.
+- Proteção dos endpoints que exigem autenticação.
+- Encaminhamento do token nas chamadas internas.
+- Configuração de segredo por variável de ambiente.
+- Exposição externa somente do Gateway.
+- Containers executados com usuário não privilegiado.
+- Sistema de arquivos somente leitura nos containers.
+- Remoção de capabilities desnecessárias.
+- Opção `no-new-privileges` habilitada.
+
+## 7. Persistência dos dados
+
+Cada microsserviço possui seu próprio banco de dados SQLite, armazenado em um volume Docker independente.
+
+| Volume | Banco |
+|---|---|
+| `usuarios_dados` | `usuarios.db` |
+| `inventario_dados` | `inventario.db` |
+| `chamados_dados` | `chamados.db` |
+
+Essa separação evita o compartilhamento direto de bancos entre os serviços e permite que cada microsserviço controle seus próprios dados.
+
+## 8. Monitoramento e tratamento de falhas
+
+O Gateway disponibiliza o endpoint:
+
+```http
+GET /saude
+```
+
+Ele verifica a disponibilidade dos três microsserviços.
+
+Quando todos estão disponíveis, retorna HTTP 200 e o estado `online`.
+
+Quando algum serviço fica indisponível, retorna HTTP 503 e o estado `degradado`, identificando o serviço afetado.
+
+As chamadas entre microsserviços também possuem timeout e tratamento de falhas de dependência.
+
+## 9. Validações realizadas
+
+Durante a implementação, foram realizados testes de funcionamento e integração, incluindo:
+
+- Inicialização dos quatro containers.
+- Verificação de disponibilidade dos serviços pelo Gateway.
+- Acesso à interface web.
+- Autenticação de diferentes perfis.
+- Bloqueio de requisições sem token.
+- Restrição de acesso aos chamados de outros solicitantes.
+- Atribuição e atualização de chamados.
+- Registro de comentários e notificações.
+- Comunicação entre Chamados, Usuários e Inventário.
+- Simulação de indisponibilidade de um serviço.
+- Verificação do retorno HTTP 503 e recuperação após reinicialização do serviço.
+
+Antes da migração, a aplicação monolítica original também teve sua suíte de testes automatizados executada, com **36 testes aprovados e nenhum teste reprovado**, conforme registrado no plano de migração.
+
+## 10. Decisões e limites da implementação
+
+A migração priorizou a separação dos domínios de usuários, inventário e chamados, com um Gateway centralizando o acesso externo.
+
+As notificações permaneceram no serviço de Chamados, evitando a criação de um serviço adicional sem necessidade para o escopo implementado.
+
+A comunicação entre serviços utiliza HTTP. Não foi implementado um intermediador de mensagens ou event broker.
+
+## 11. Considerações finais
+
+A migração permitiu transformar a aplicação original em uma arquitetura de microsserviços, com serviços executados em containers independentes, bancos de dados separados e comunicação por APIs.
+
+O projeto demonstra conceitos de arquitetura distribuída, API Gateway, isolamento de dados, autenticação, segurança em containers, persistência e tratamento de falhas.
+
+**Repositório:** https://github.com/peddrocarvalho/helpdesk-microsservicos-pedro

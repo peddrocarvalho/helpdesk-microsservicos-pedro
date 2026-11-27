@@ -1,4 +1,4 @@
-
+﻿
 from collections import Counter
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
@@ -56,8 +56,8 @@ async def ciclo_de_vida(app: FastAPI):
 
 
 app = FastAPI(
-    title="Microsserviço de Chamados",
-    description="Gerenciamento de chamados, SLA, comentários e notificações.",
+    title="MicrosserviÃ§o de Chamados",
+    description="Gerenciamento de chamados, SLA, comentÃ¡rios e notificaÃ§Ãµes.",
     version="1.0.0",
     lifespan=ciclo_de_vida,
 )
@@ -67,13 +67,13 @@ def usuario_atual(
     credenciais: HTTPAuthorizationCredentials | None = Depends(esquema),
 ):
     if credenciais is None:
-        raise HTTPException(401, "Faça login para continuar.")
+        raise HTTPException(401, "FaÃ§a login para continuar.")
 
     authorization = f"{credenciais.scheme} {credenciais.credentials}"
     token = credenciais.credentials
 
     if not JWT_SEGREDO:
-        raise HTTPException(500, "JWT_SEGREDO não configurado.")
+        raise HTTPException(500, "JWT_SEGREDO nÃ£o configurado.")
 
     try:
         payload = jwt.decode(
@@ -89,7 +89,7 @@ def usuario_atual(
         usuario_id = int(payload["sub"])
 
     except Exception:
-        raise HTTPException(401, "Token inválido ou expirado.")
+        raise HTTPException(401, "Token invÃ¡lido ou expirado.")
 
     try:
         resposta = httpx.get(
@@ -102,20 +102,20 @@ def usuario_atual(
 
     except httpx.HTTPStatusError as erro:
         if erro.response.status_code in (401, 403, 404):
-            raise HTTPException(401, "Usuário não autorizado.")
+            raise HTTPException(401, "UsuÃ¡rio nÃ£o autorizado.")
 
-        raise HTTPException(503, "Serviço de Usuários indisponível.")
+        raise HTTPException(503, "ServiÃ§o de UsuÃ¡rios indisponÃ­vel.")
 
     except (httpx.RequestError, ValueError):
         raise HTTPException(
             503,
-            "Não foi possível consultar o serviço de Usuários.",
+            "NÃ£o foi possÃ­vel consultar o serviÃ§o de UsuÃ¡rios.",
         )
 
     perfil = dados.get("perfil") or payload.get("perfil")
 
     if not perfil:
-        raise HTTPException(401, "Perfil do usuário não identificado.")
+        raise HTTPException(401, "Perfil do usuÃ¡rio nÃ£o identificado.")
 
     return {
         "id": usuario_id,
@@ -127,7 +127,7 @@ def exigir_equipe(usuario):
     if usuario["perfil"] not in EQUIPE:
         raise HTTPException(
             403,
-            "Apenas técnicos e administradores podem realizar esta ação.",
+            "Apenas tÃ©cnicos e administradores podem realizar esta aÃ§Ã£o.",
         )
 
 
@@ -163,7 +163,7 @@ def obter_visivel(db, chamado_id, usuario):
     ):
         raise HTTPException(
             404,
-            f"Chamado {chamado_id} não encontrado.",
+            f"Chamado {chamado_id} nÃ£o encontrado.",
         )
 
     return chamado
@@ -181,23 +181,23 @@ def validar_tecnico(tecnico_id, authorization):
 
     except httpx.HTTPStatusError as erro:
         if erro.response.status_code == 404:
-            raise HTTPException(404, "Técnico não encontrado.")
+            raise HTTPException(404, "TÃ©cnico nÃ£o encontrado.")
 
         raise HTTPException(
             503,
-            "Falha ao consultar serviço de Usuários.",
+            "Falha ao consultar serviÃ§o de UsuÃ¡rios.",
         )
 
     except httpx.RequestError:
         raise HTTPException(
             503,
-            "Serviço de Usuários indisponível.",
+            "ServiÃ§o de UsuÃ¡rios indisponÃ­vel.",
         )
 
     if dados.get("perfil") not in EQUIPE:
         raise HTTPException(
             400,
-            "O usuário informado não é técnico nem administrador.",
+            "O usuÃ¡rio informado nÃ£o Ã© tÃ©cnico nem administrador.",
         )
 
 
@@ -214,22 +214,23 @@ def validar_ativo(ativo_id, authorization):
         if erro.response.status_code == 404:
             raise HTTPException(
                 404,
-                "Ativo não encontrado no Inventário.",
+                "Ativo nÃ£o encontrado no InventÃ¡rio.",
             )
 
         raise HTTPException(
             503,
-            "Falha ao consultar serviço de Inventário.",
+            "Falha ao consultar serviÃ§o de InventÃ¡rio.",
         )
 
     except httpx.RequestError:
         raise HTTPException(
             503,
-            "Serviço de Inventário indisponível.",
+            "ServiÃ§o de InventÃ¡rio indisponÃ­vel.",
         )
 
 
 @app.get("/health")
+@app.get("/saude")
 def health():
     return {
         "servico": "chamados",
@@ -381,7 +382,7 @@ def atribuir_chamado(
     if chamado.status in ("resolvido", "fechado"):
         raise HTTPException(
             400,
-            "Não é possível atribuir chamado resolvido ou fechado.",
+            "NÃ£o Ã© possÃ­vel atribuir chamado resolvido ou fechado.",
         )
 
     validar_tecnico(dados.tecnico_id, authorization)
@@ -398,7 +399,7 @@ def atribuir_chamado(
         db,
         "ChamadoAtribuido",
         dados.tecnico_id,
-        f"O chamado #{chamado.id} foi atribuído a você.",
+        f"O chamado #{chamado.id} foi atribuÃ­do a vocÃª.",
     )
 
     return buscar_chamado(db, chamado.id)
@@ -425,20 +426,20 @@ def mudar_status(
     if usuario["perfil"] not in EQUIPE and not pode_solicitante:
         raise HTTPException(
             403,
-            "Você não pode mudar o status deste chamado.",
+            "VocÃª nÃ£o pode mudar o status deste chamado.",
         )
 
     if novo_status not in TRANSICOES[chamado.status]:
         raise HTTPException(
             400,
-            f"Não é possível ir de '{chamado.status}' "
+            f"NÃ£o Ã© possÃ­vel ir de '{chamado.status}' "
             f"para '{novo_status}'.",
         )
 
     if novo_status == "em_atendimento" and chamado.tecnico_id is None:
         raise HTTPException(
             400,
-            "Atribua um técnico antes de iniciar o atendimento.",
+            "Atribua um tÃ©cnico antes de iniciar o atendimento.",
         )
 
     chamado.status = novo_status
@@ -452,7 +453,7 @@ def mudar_status(
             "ChamadoResolvido",
             chamado.solicitante_id,
             f"Seu chamado #{chamado.id} foi resolvido. "
-            "Confirme se está tudo certo.",
+            "Confirme se estÃ¡ tudo certo.",
         )
 
     return buscar_chamado(db, chamado.id)
@@ -474,7 +475,7 @@ def comentar(
     if chamado.status == "fechado":
         raise HTTPException(
             400,
-            "Chamados fechados não recebem comentários.",
+            "Chamados fechados nÃ£o recebem comentÃ¡rios.",
         )
 
     comentario = Comentario(
@@ -508,3 +509,4 @@ def minhas_notificacoes(
     )
 
     return list(db.scalars(consulta))
+

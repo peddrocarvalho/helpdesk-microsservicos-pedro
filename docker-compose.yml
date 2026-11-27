@@ -1,15 +1,10 @@
-services:
-  helpdesk:
-    build: .
+﻿services:
+  gateway:
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
     ports:
-      - "127.0.0.1:8000:8000"   # só acessível pelo próprio computador
-    env_file:
-      - path: .env
-        required: false
-    environment:
-      DADOS_EXEMPLO: ${DADOS_EXEMPLO:-1}
-    volumes:
-      - dados:/dados
+      - "127.0.0.1:8000:8000"
     read_only: true
     tmpfs:
       - /tmp
@@ -17,6 +12,89 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    init: true
+    depends_on:
+      - usuarios
+      - inventario
+      - chamados
+
+  usuarios:
+    build:
+      context: ./services/usuarios
+    expose:
+      - "8001"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: sqlite:////dados/usuarios.db
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONUNBUFFERED: "1"
+      DADOS_EXEMPLO: ${DADOS_EXEMPLO:-1}
+    volumes:
+      - usuarios_dados:/dados
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    init: true
+
+  inventario:
+    build:
+      context: ./services/inventario
+    expose:
+      - "8002"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: sqlite:////dados/inventario.db
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONUNBUFFERED: "1"
+      DADOS_EXEMPLO: ${DADOS_EXEMPLO:-1}
+    volumes:
+      - inventario_dados:/dados
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    init: true
+
+  chamados:
+    build:
+      context: ./services/chamados
+    expose:
+      - "8003"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: sqlite:////dados/chamados.db
+      USUARIOS_URL: http://usuarios:8001
+      INVENTARIO_URL: http://inventario:8002
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - chamados_dados:/dados
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    init: true
+    depends_on:
+      - usuarios
+      - inventario
 
 volumes:
-  dados:
+  usuarios_dados:
+  inventario_dados:
+  chamados_dados:

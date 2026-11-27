@@ -1,9 +1,14 @@
-import os
+﻿import os
 
 from dotenv import load_dotenv
 from pathlib import Path
 
-load_dotenv(Path(__file__).resolve().parents[3] / ".env")
+_env_local = next(
+    (p / ".env" for p in Path(__file__).resolve().parents if (p / ".env").is_file()),
+    None,
+)
+if _env_local:
+    load_dotenv(_env_local)
 
 JWT_SEGREDO = os.getenv("JWT_SEGREDO", "")
 JWT_ALGORITMO = "HS256"

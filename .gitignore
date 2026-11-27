@@ -4,3 +4,6 @@ __pycache__/
 .venv/
 *.db
 .env
+
+.vscode/
+resultado-testes-integracao.csv
